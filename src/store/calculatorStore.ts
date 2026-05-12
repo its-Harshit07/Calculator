@@ -45,7 +45,7 @@ interface CalculatorState {
   scientificFunc: (func: string) => void
 }
 
-export const useCalculatorStore = create<CalculatorState>((set, get) => ({
+export const useCalculatorStore = create<CalculatorState>((set) => ({
   mode: 'Standard',
   converterType: 'Length',
   isDarkMode: true,
@@ -137,7 +137,7 @@ export const useCalculatorStore = create<CalculatorState>((set, get) => ({
   setProgrammerMode: (programmerMode) => set({ programmerMode }),
   setBase: (base) => set({ base, display: '0' }),
 
-  bitwiseOp: (op) => set((state) => {
+  bitwiseOp: () => set((state) => {
     // Basic implementation for bitwise, could be expanded
     return state;
   }),

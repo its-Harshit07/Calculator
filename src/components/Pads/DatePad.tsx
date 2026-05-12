@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { differenceInDays, addDays, format, isValid, parseISO } from 'date-fns'
 
 export const DatePad = () => {

@@ -1,11 +1,10 @@
-import React from 'react'
 import { CalcButton } from '../ui/Button'
 import { useCalculatorStore } from '../../store/calculatorStore'
 import { Delete } from 'lucide-react'
 
 export const ProgrammerPad = () => {
   const { 
-    inputDigit, inputOperator, calculate, clear, backspace,
+    inputDigit, clear, backspace,
     base, setBase, display
   } = useCalculatorStore()
 

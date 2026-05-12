@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import { useEffect } from 'react'
 import { CalcButton } from '../ui/Button'
 import { useCalculatorStore } from '../../store/calculatorStore'
 import { Delete } from 'lucide-react'
