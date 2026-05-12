@@ -21,7 +21,3 @@ A fully functional modern calculator web application inspired by the Windows 11 
 - Animations: Framer Motion
 - Icons: Lucide React
 - Date utils: date-fns
-
-   ```bash
-   npm run build
-   ```
