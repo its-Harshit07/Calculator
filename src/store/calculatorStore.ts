@@ -101,8 +101,19 @@ export const useCalculatorStore = create<CalculatorState>((set) => ({
   calculate: () => set((state) => {
     try {
       if (state.display === 'Error') return state
-      const fullEquation = state.equation + state.display
+      
+      let fullEquation = state.equation
+      if (!(state.display === '0' && state.equation.trim().endsWith(')'))) {
+        fullEquation += state.display
+      }
+      
       if (!fullEquation.trim()) return state
+      
+      const openBrackets = (fullEquation.match(/\(/g) || []).length
+      const closeBrackets = (fullEquation.match(/\)/g) || []).length
+      for (let i = 0; i < openBrackets - closeBrackets; i++) {
+        fullEquation += ' )'
+      }
       
       const result = math.evaluate(fullEquation.replace(/×/g, '*').replace(/÷/g, '/'))
       let formattedResult = math.format(result, { precision: 14 })
