@@ -14,6 +14,9 @@ interface CalculatorState {
   memory: number
   programmerMode: 'QWORD' | 'DWORD' | 'WORD' | 'BYTE'
   base: 'HEX' | 'DEC' | 'OCT' | 'BIN'
+  lastOperator: string | null
+  lastOperand: string | null
+
   
   setMode: (mode: Mode) => void
   setConverterType: (type: ConverterType) => void
@@ -55,6 +58,8 @@ export const useCalculatorStore = create<CalculatorState>((set) => ({
   memory: 0,
   programmerMode: 'QWORD',
   base: 'DEC',
+  lastOperator: null,
+  lastOperand: null,
 
   setMode: (mode) => set({ mode, display: '0', equation: '' }),
   setConverterType: (converterType) => set({ converterType }),
@@ -62,13 +67,19 @@ export const useCalculatorStore = create<CalculatorState>((set) => ({
 
   inputDigit: (digit) => set((state) => {
     if (state.display === '0' || state.display === 'Error') {
-      return { display: digit }
+      return { display: digit, ...(state.equation.trim().endsWith('=') ? { equation: '' } : {}) }
+    }
+    if (state.equation.trim().endsWith('=')) {
+      return { display: digit, equation: '' }
     }
     return { display: state.display + digit }
   }),
 
   inputDecimal: () => set((state) => {
-    if (state.display === 'Error') return { display: '0.' }
+    if (state.display === 'Error') return { display: '0.', equation: '' }
+    if (state.equation.trim().endsWith('=')) {
+      return { display: '0.', equation: '' }
+    }
     if (!state.display.includes('.')) {
       return { display: state.display + '.' }
     }
@@ -78,22 +89,29 @@ export const useCalculatorStore = create<CalculatorState>((set) => ({
   inputOperator: (op) => set((state) => {
     if (state.display === 'Error') return state
     
-    let appendStr = state.display + ' ' + op + ' '
+    let baseEquation = state.equation;
+    let baseDisplay = state.display;
     
-    if (state.display === '0') {
+    if (baseEquation.trim().endsWith('=')) {
+      baseEquation = '';
+    }
+    
+    let appendStr = baseDisplay + ' ' + op + ' '
+    
+    if (baseDisplay === '0') {
       if (op === '(') {
         appendStr = op + ' '
-      } else if (state.equation !== '' && state.equation.trim().endsWith(')')) {
+      } else if (baseEquation !== '' && baseEquation.trim().endsWith(')')) {
         appendStr = op + ' '
       }
     }
 
-    if (state.equation === '' && state.display === '0' && op === '(') {
+    if (baseEquation === '' && baseDisplay === '0' && op === '(') {
        appendStr = '( '
     }
 
     return {
-      equation: state.equation + appendStr,
+      equation: baseEquation + appendStr,
       display: '0'
     }
   }),
@@ -103,35 +121,63 @@ export const useCalculatorStore = create<CalculatorState>((set) => ({
       if (state.display === 'Error') return state
       
       let fullEquation = state.equation
-      if (!(state.display === '0' && state.equation.trim().endsWith(')'))) {
-        fullEquation += state.display
+      let newLastOperator = state.lastOperator
+      let newLastOperand = state.lastOperand
+      
+      if (state.equation.trim().endsWith('=')) {
+        if (state.lastOperator && state.lastOperand) {
+           fullEquation = state.display + ' ' + state.lastOperator + ' ' + state.lastOperand;
+        } else {
+           return state;
+        }
+      } else {
+        if (!(state.display === '0' && state.equation.trim().endsWith(')'))) {
+          fullEquation += state.display
+        }
+        
+        const opRegex = /(?:^|\s)([+\-×÷])\s+((?:(?!\s[+\-×÷]\s).)*)$/;
+        const match = fullEquation.match(opRegex);
+        if (match) {
+          newLastOperator = match[1];
+          let operand = match[2].trim();
+          if (!operand.includes('(')) {
+             operand = operand.replace(/\)+$/, '');
+          }
+          newLastOperand = operand;
+        }
       }
       
       if (!fullEquation.trim()) return state
       
       const openBrackets = (fullEquation.match(/\(/g) || []).length
       const closeBrackets = (fullEquation.match(/\)/g) || []).length
+      let closedEquation = fullEquation;
       for (let i = 0; i < openBrackets - closeBrackets; i++) {
-        fullEquation += ' )'
+        closedEquation += ' )'
       }
       
-      const result = math.evaluate(fullEquation.replace(/×/g, '*').replace(/÷/g, '/'))
+      const result = math.evaluate(closedEquation.replace(/×/g, '*').replace(/÷/g, '/'))
       let formattedResult = math.format(result, { precision: 14 })
       
       return {
         display: String(formattedResult),
-        equation: '',
-        history: [...state.history, `${fullEquation} = ${formattedResult}`]
+        equation: closedEquation + ' =',
+        lastOperator: newLastOperator,
+        lastOperand: newLastOperand,
+        history: [...state.history, `${closedEquation} = ${formattedResult}`]
       }
     } catch (error) {
       return { display: 'Error', equation: '' }
     }
   }),
 
-  clear: () => set({ display: '0', equation: '' }),
+  clear: () => set({ display: '0', equation: '', lastOperator: null, lastOperand: null }),
 
   backspace: () => set((state) => {
-    if (state.display === 'Error') return { display: '0' }
+    if (state.display === 'Error') return { display: '0', equation: '' }
+    if (state.equation.trim().endsWith('=')) {
+      return { equation: '' }
+    }
     if (state.display.length === 1) return { display: '0' }
     return { display: state.display.slice(0, -1) }
   }),
