@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+
 import { CalcButton } from '../ui/Button'
 import { useCalculatorStore } from '../../store/calculatorStore'
 import { Delete } from 'lucide-react'
@@ -21,26 +21,6 @@ export const StandardPad = () => {
     memory
   } = useCalculatorStore()
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const key = e.key
-      if (/[0-9]/.test(key)) inputDigit(key)
-      if (['+', '-', '*', '/'].includes(key)) {
-        e.preventDefault()
-        inputOperator(key === '*' ? '×' : key === '/' ? '÷' : key)
-      }
-      if (key === 'Enter' || key === '=') {
-        e.preventDefault()
-        calculate()
-      }
-      if (key === 'Backspace') backspace()
-      if (key === 'Escape') clear()
-      if (key === '.') inputDecimal()
-      if (key === '%') calculatePercentage()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [inputDigit, inputOperator, calculate, clear, backspace, inputDecimal, calculatePercentage])
 
   return (
     <div className="flex flex-col gap-1 w-full h-full p-2">

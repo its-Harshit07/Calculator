@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Menu, History } from 'lucide-react'
 import { useCalculatorStore } from '../store/calculatorStore'
@@ -13,6 +13,45 @@ import { cn } from '../lib/utils'
 export const Calculator = ({ onOpenSidebar }: { onOpenSidebar: () => void }) => {
   const { mode, converterType, display, equation, history } = useCalculatorStore()
   const [showHistory, setShowHistory] = useState(false)
+
+  useEffect(() => {
+    if (mode === 'Date' || mode === 'Graphing' || mode === 'Converter') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        document.activeElement instanceof HTMLInputElement || 
+        document.activeElement instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+
+      const key = e.key;
+      const { 
+        inputDigit, inputOperator, calculate, clear, backspace, inputDecimal, calculatePercentage 
+      } = useCalculatorStore.getState();
+
+      if (/[0-9]/.test(key)) inputDigit(key);
+      if (['+', '-', '*', '/'].includes(key)) {
+        e.preventDefault();
+        inputOperator(key === '*' ? '×' : key === '/' ? '÷' : key);
+      }
+      if (key === '(' || key === ')') {
+        e.preventDefault();
+        inputOperator(key);
+      }
+      if (key === 'Enter' || key === '=') {
+        e.preventDefault();
+        calculate();
+      }
+      if (key === 'Backspace') backspace();
+      if (key === 'Escape' || key === 'Delete') clear();
+      if (key === '.') inputDecimal();
+      if (key === '%') calculatePercentage();
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mode]);
 
   const renderPad = () => {
     switch (mode) {

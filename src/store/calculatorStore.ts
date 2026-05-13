@@ -77,8 +77,23 @@ export const useCalculatorStore = create<CalculatorState>((set) => ({
 
   inputOperator: (op) => set((state) => {
     if (state.display === 'Error') return state
+    
+    let appendStr = state.display + ' ' + op + ' '
+    
+    if (state.display === '0') {
+      if (op === '(') {
+        appendStr = op + ' '
+      } else if (state.equation !== '' && state.equation.trim().endsWith(')')) {
+        appendStr = op + ' '
+      }
+    }
+
+    if (state.equation === '' && state.display === '0' && op === '(') {
+       appendStr = '( '
+    }
+
     return {
-      equation: state.equation + state.display + ' ' + op + ' ',
+      equation: state.equation + appendStr,
       display: '0'
     }
   }),
