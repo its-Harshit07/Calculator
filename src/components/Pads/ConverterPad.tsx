@@ -179,6 +179,15 @@ export const ConverterPad = () => {
       }).catch(() => {
         setIsApiLoading(false)
       })
+
+      // Background silent auto-refresh every 15 minutes to keep rates fresh
+      const intervalId = setInterval(() => {
+        updateCurrencyRates().then(success => {
+          if (success) setRatesUpdated(Date.now());
+        });
+      }, 1000 * 60 * 15);
+
+      return () => clearInterval(intervalId);
     }
   }, [converterType])
 

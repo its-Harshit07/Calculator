@@ -1,79 +1,98 @@
 import { CONVERTER_DATA } from './converterData'
 
-let lastFetchTime = 0;
-const CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
-let isFetching = false;
-
-// Multiple reliable free APIs with no API key required for fallbacks
-const FETCH_URLS = [
-  'https://open.er-api.com/v6/latest/USD',
-  'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
-  'https://api.frankfurter.app/latest?from=USD'
-];
-
-const fetchWithTimeout = async (url: string, timeout = 5000) => {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  const response = await fetch(url, { signal: controller.signal });
-  clearTimeout(id);
-  return response;
-};
-
-export const updateCurrencyRates = async (): Promise<boolean> => {
-  const now = Date.now();
-  if (now - lastFetchTime < CACHE_DURATION) return true;
-  if (isFetching) return true; // prevent duplicate parallel calls
-
-  isFetching = true;
-
-  try {
-    let success = false;
-    let ratesData: Record<string, number> | null = null;
-
-    // Try APIs sequentially until one succeeds
-    for (const url of FETCH_URLS) {
-      try {
-        const res = await fetchWithTimeout(url, 4000);
-        if (!res.ok) continue;
-        const data = await res.json();
-        
-        if (data && data.rates) {
-          ratesData = data.rates; // open.er-api or frankfurter format
-          success = true;
-          break;
-        } else if (data && data.usd) {
-          // cdn.jsdelivr format has { date: string, usd: { eur: 0.9, ... } }
-          // We need to uppercase keys for our system
-          ratesData = {};
-          for (const [key, val] of Object.entries(data.usd)) {
-            ratesData[key.toUpperCase()] = Number(val);
-          }
-          success = true;
-          break;
-        }
-      } catch {
-        // Silently continue to next fallback
-        continue;
-      }
-    }
-
-    if (success && ratesData) {
-      const liveRates = { USD: 1, ...ratesData };
-      const currentUnits = CONVERTER_DATA.Currency.units as Record<string, number>;
-      
-      CONVERTER_DATA.Currency.units = {
-        ...currentUnits,
-        ...liveRates
-      };
-      
-      lastFetchTime = now;
-      isFetching = false;
-      return true;
-    }
-  } catch {
-    // Ultimate silent failure
-  }
+class CurrencyService {
+  private lastFetchTime = 0;
+  private isFetching = false;
+  private readonly CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
   
-  isFetching = false;
-  return false;
-};
+  // Professional, highly reliable free APIs
+  private readonly FALLBACK_URLS = [
+    'https://open.er-api.com/v6/latest/USD',
+    'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+    'https://api.frankfurter.app/latest?from=USD'
+  ];
+
+  private async fetchWithTimeout(url: string, timeout = 4000): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      return response;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  }
+
+  public async fetchLatestRates(): Promise<boolean> {
+    const now = Date.now();
+    if (now - this.lastFetchTime < this.CACHE_DURATION) return true;
+    if (this.isFetching) return true;
+
+    this.isFetching = true;
+
+    try {
+      let success = false;
+      let rawRates: Record<string, number> | null = null;
+
+      for (const url of this.FALLBACK_URLS) {
+        try {
+          const res = await this.fetchWithTimeout(url);
+          if (!res.ok) continue;
+          
+          const data = await res.json();
+          
+          if (data && data.rates) {
+            rawRates = data.rates;
+            success = true;
+            break;
+          } else if (data && data.usd) {
+            rawRates = {};
+            for (const [key, val] of Object.entries(data.usd)) {
+              rawRates[key.toUpperCase()] = Number(val);
+            }
+            success = true;
+            break;
+          }
+        } catch {
+          // Silent retry with next fallback
+          continue;
+        }
+      }
+
+      if (success && rawRates) {
+        const liveRates: Record<string, number> = { USD: 1 };
+        
+        // Critical Fix: 
+        // APIs return rates as 1 USD = X Target (e.g. 1 USD = 83 INR)
+        // Our converterData expects 1 Target = X Base (e.g. 1 INR = 0.012 USD)
+        // We MUST mathematically invert the API rates before injecting them.
+        for (const [currency, rate] of Object.entries(rawRates)) {
+          if (typeof rate === 'number' && rate > 0) {
+            liveRates[currency.toUpperCase()] = 1 / rate;
+          }
+        }
+
+        const currentUnits = CONVERTER_DATA.Currency.units as Record<string, number>;
+        
+        CONVERTER_DATA.Currency.units = {
+          ...currentUnits,
+          ...liveRates
+        };
+        
+        this.lastFetchTime = now;
+        this.isFetching = false;
+        return true;
+      }
+    } catch {
+      // Complete silent failure - preserve functional UI using static cached data
+    }
+    
+    this.isFetching = false;
+    return false; // Tells UI that live update failed
+  }
+}
+
+export const currencyService = new CurrencyService();
+export const updateCurrencyRates = () => currencyService.fetchLatestRates();
