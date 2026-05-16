@@ -1,36 +1,79 @@
 import { CONVERTER_DATA } from './converterData'
 
-let lastFetchTime = 0
-const CACHE_DURATION = 1000 * 60 * 60 // 1 hour
+let lastFetchTime = 0;
+const CACHE_DURATION = 1000 * 60 * 30; // 30 minutes
+let isFetching = false;
+
+// Multiple reliable free APIs with no API key required for fallbacks
+const FETCH_URLS = [
+  'https://open.er-api.com/v6/latest/USD',
+  'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+  'https://api.frankfurter.app/latest?from=USD'
+];
+
+const fetchWithTimeout = async (url: string, timeout = 5000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  const response = await fetch(url, { signal: controller.signal });
+  clearTimeout(id);
+  return response;
+};
 
 export const updateCurrencyRates = async (): Promise<boolean> => {
-  const now = Date.now()
-  if (now - lastFetchTime < CACHE_DURATION) return true
+  const now = Date.now();
+  if (now - lastFetchTime < CACHE_DURATION) return true;
+  if (isFetching) return true; // prevent duplicate parallel calls
+
+  isFetching = true;
 
   try {
-    const res = await fetch('https://api.frankfurter.app/latest?base=USD')
-    if (!res.ok) throw new Error('API failed')
-    const data = await res.json()
-    
-    if (data && data.rates) {
-      const liveRates = { USD: 1, ...data.rates }
+    let success = false;
+    let ratesData: Record<string, number> | null = null;
+
+    // Try APIs sequentially until one succeeds
+    for (const url of FETCH_URLS) {
+      try {
+        const res = await fetchWithTimeout(url, 4000);
+        if (!res.ok) continue;
+        const data = await res.json();
+        
+        if (data && data.rates) {
+          ratesData = data.rates; // open.er-api or frankfurter format
+          success = true;
+          break;
+        } else if (data && data.usd) {
+          // cdn.jsdelivr format has { date: string, usd: { eur: 0.9, ... } }
+          // We need to uppercase keys for our system
+          ratesData = {};
+          for (const [key, val] of Object.entries(data.usd)) {
+            ratesData[key.toUpperCase()] = Number(val);
+          }
+          success = true;
+          break;
+        }
+      } catch {
+        // Silently continue to next fallback
+        continue;
+      }
+    }
+
+    if (success && ratesData) {
+      const liveRates = { USD: 1, ...ratesData };
+      const currentUnits = CONVERTER_DATA.Currency.units as Record<string, number>;
       
-      // Update the constant directly so it's globally available
-      // By replacing the object entirely or merging, we can add new currencies too
-      const currentUnits = CONVERTER_DATA.Currency.units as Record<string, number>
-      
-      // Merge live rates with fallback rates (so unsupported currencies still exist)
       CONVERTER_DATA.Currency.units = {
         ...currentUnits,
         ...liveRates
-      }
+      };
       
-      lastFetchTime = now
-      return true
+      lastFetchTime = now;
+      isFetching = false;
+      return true;
     }
-  } catch (error) {
-    console.warn('Using fallback static currency rates due to API failure', error)
-    return false
+  } catch {
+    // Ultimate silent failure
   }
-  return false
-}
+  
+  isFetching = false;
+  return false;
+};

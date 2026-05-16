@@ -159,7 +159,6 @@ export const ConverterPad = () => {
   const [value, setValue] = useState('0')
   const [currentCategory, setCurrentCategory] = useState(converterType)
   const [isApiLoading, setIsApiLoading] = useState(false)
-  const [apiError, setApiError] = useState(false)
   const [, setRatesUpdated] = useState(0)
 
   if (currentCategory !== converterType) {
@@ -167,23 +166,18 @@ export const ConverterPad = () => {
     setFromUnit(typeData.defaultFrom)
     setToUnit(typeData.defaultTo)
     setValue('0')
-    setApiError(false)
   }
 
   useEffect(() => {
     if (converterType === 'Currency') {
       setIsApiLoading(true)
-      setApiError(false)
       updateCurrencyRates().then(success => {
         setIsApiLoading(false)
         if (success) {
           setRatesUpdated(Date.now())
-        } else {
-          setApiError(true)
         }
       }).catch(() => {
         setIsApiLoading(false)
-        setApiError(true)
       })
     }
   }, [converterType])
@@ -276,10 +270,7 @@ export const ConverterPad = () => {
         <div className="h-px w-full bg-white/10 my-2" />
         
         {converterType === 'Currency' && isApiLoading && (
-          <div className="text-xs text-blue-400 mb-2">Updating live exchange rates...</div>
-        )}
-        {converterType === 'Currency' && apiError && (
-          <div className="text-xs text-amber-500 mb-2">Using fallback offline rates. Live update failed.</div>
+          <div className="text-xs text-blue-400 mb-2">Updating live rates...</div>
         )}
 
         <div>

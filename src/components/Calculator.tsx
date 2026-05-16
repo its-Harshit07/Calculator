@@ -1,17 +1,25 @@
-import { useState, lazy, Suspense } from 'react'
+import { useState, lazy, Suspense, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Menu, History, Trash2 } from 'lucide-react'
 import { useCalculatorStore } from '../store/calculatorStore'
 import { useKeyboardHandler } from '../lib/useKeyboardHandler'
 import { cn } from '../lib/utils'
 
+// Intelligent preloading imports
+const importStandard = () => import('./Pads/StandardPad').then(m => ({ default: m.StandardPad }))
+const importScientific = () => import('./Pads/ScientificPad').then(m => ({ default: m.ScientificPad }))
+const importProgrammer = () => import('./Pads/ProgrammerPad').then(m => ({ default: m.ProgrammerPad }))
+const importGraphing = () => import('./Pads/GraphingPad').then(m => ({ default: m.GraphingPad }))
+const importDate = () => import('./Pads/DatePad').then(m => ({ default: m.DatePad }))
+const importConverter = () => import('./Pads/ConverterPad').then(m => ({ default: m.ConverterPad }))
+
 // Lazy load pads for performance & bundle optimization
-const StandardPad = lazy(() => import('./Pads/StandardPad').then(m => ({ default: m.StandardPad })))
-const ScientificPad = lazy(() => import('./Pads/ScientificPad').then(m => ({ default: m.ScientificPad })))
-const ProgrammerPad = lazy(() => import('./Pads/ProgrammerPad').then(m => ({ default: m.ProgrammerPad })))
-const GraphingPad = lazy(() => import('./Pads/GraphingPad').then(m => ({ default: m.GraphingPad })))
-const DatePad = lazy(() => import('./Pads/DatePad').then(m => ({ default: m.DatePad })))
-const ConverterPad = lazy(() => import('./Pads/ConverterPad').then(m => ({ default: m.ConverterPad })))
+const StandardPad = lazy(importStandard)
+const ScientificPad = lazy(importScientific)
+const ProgrammerPad = lazy(importProgrammer)
+const GraphingPad = lazy(importGraphing)
+const DatePad = lazy(importDate)
+const ConverterPad = lazy(importConverter)
 
 export const Calculator = ({ onOpenSidebar }: { onOpenSidebar: () => void }) => {
   const { mode, converterType, display, equation, history, clearHistory } = useCalculatorStore()
@@ -19,6 +27,18 @@ export const Calculator = ({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
 
   // Use separated custom hook for keyboard handling
   useKeyboardHandler();
+
+  // Preload remaining calculator modes slightly after initial mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (mode !== 'Scientific') importScientific()
+      if (mode !== 'Programmer') importProgrammer()
+      if (mode !== 'Graphing') importGraphing()
+      if (mode !== 'Date') importDate()
+      if (mode !== 'Converter') importConverter()
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [mode])
 
   const renderPad = () => {
     switch (mode) {
@@ -83,7 +103,7 @@ export const Calculator = ({ onOpenSidebar }: { onOpenSidebar: () => void }) => 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative z-10">
         <div className="flex-1 h-full">
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>}>
+          <Suspense fallback={<div className="h-full w-full" />}>
             {renderPad()}
           </Suspense>
         </div>
